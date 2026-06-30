@@ -171,17 +171,17 @@
 
 <script>
     // ============================================================
-    // 🔥 Firebase 配置 - 请替换为你的项目配置
+    // 🔥 Firebase 配置 - 替换为你的项目配置
     // ============================================================
-    const firebaseConfig = {
-  	apiKey: "AIzaSyBI58xy2ICo21x91928VCTjijWYHhysDPo",
-  	authDomain: "bomb-gift-game-30ba9.firebaseapp.com",
-  	databaseURL: "https://bomb-gift-game-30ba9-default-rtdb.firebaseio.com",
-  	projectId: "bomb-gift-game-30ba9",
-  	storageBucket: "bomb-gift-game-30ba9.firebasestorage.app",
-  	messagingSenderId: "433690949590",
-  	appId: "1:433690949590:web:a0c8fd3c349ecdbbd55677"
-    };
+const firebaseConfig = {
+  apiKey: "AIzaSyBI58xy2ICo21x91928VCTjijWYHhysDPo",
+  authDomain: "bomb-gift-game-30ba9.firebaseapp.com",
+  databaseURL: "https://bomb-gift-game-30ba9-default-rtdb.firebaseio.com",
+  projectId: "bomb-gift-game-30ba9",
+  storageBucket: "bomb-gift-game-30ba9.firebasestorage.app",
+  messagingSenderId: "433690949590",
+  appId: "1:433690949590:web:a0c8fd3c349ecdbbd55677"
+};
 
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
@@ -262,7 +262,6 @@
 
     // ---------- 监听玩家数据变化 ----------
     function listenPlayer(playerName) {
-        // 取消之前的监听
         if (window._playerListener) {
             window._playerListener.off();
         }
@@ -273,8 +272,8 @@
             if (data) {
                 updateUI(data);
                 currentPlayerDisplay.textContent = playerName;
-                // 更新全局当前玩家名
                 window.currentPlayerName = playerName;
+                window._currentPlayerData = data;
             } else {
                 // 玩家不存在，创建默认数据
                 ref.set({
@@ -308,16 +307,12 @@
             giftList.innerHTML = `<div class="empty">暂无可抢红包</div>`;
             return;
         }
-        // 转为数组
         const giftsArray = Object.keys(allGifts).map(key => ({ id: key, ...allGifts[key] }));
-        // 过滤出可抢的红包：发送者不是当前玩家，且当前玩家未抢过，且有未抢包
         const available = giftsArray.filter(g => {
             if (g.sender === window.currentPlayerName) return false;
-            // 检查当前玩家是否已抢过此红包
             const playerData = window._currentPlayerData || {};
             const grabbed = playerData.grabbedGifts || {};
             if (grabbed[g.id]) return false;
-            // 检查是否有未抢包
             return g.packets.some(p => !p.grabbed);
         });
         giftCount.textContent = available.length;
@@ -357,20 +352,17 @@
             showToast('⚠️ 金额至少6卢比 (6个包)');
             return;
         }
-        // 读取当前玩家数据
         const playerName = window.currentPlayerName;
         if (!playerName) { showToast('请先切换玩家'); return; }
         const playerRef = getPlayerRef(playerName);
-        // 先读取玩家余额
         playerRef.once('value', (snap) => {
             const data = snap.val();
             if (!data) { showToast('玩家数据不存在'); return; }
             const balance = data.balance || 0;
             if (balance < amount) { showToast('❌ 余额不足！'); return; }
 
-            const bombDigit = stateSelectedBomb; // 全局存储选中的炸弹数字
+            const bombDigit = stateSelectedBomb;
 
-            // 生成6个包
             let packetAmounts;
             try {
                 packetAmounts = splitAmount(amount, 6);
@@ -393,17 +385,14 @@
                 createdAt: firebase.database.ServerValue.TIMESTAMP
             };
 
-            // 写入红包
             const newGiftRef = giftsRef.push();
             newGiftRef.set(newGift).then(() => {
-                // 更新发送者余额和发包次数
                 playerRef.update({
                     balance: balance - amount,
                     sendCount: (data.sendCount || 0) + 1
                 }).then(() => {
                     showToast(`✅ 发送成功！总额 ₹${amount.toFixed(2)}，炸弹数字 ${bombDigit}`);
                     switchTab('grabTab');
-                    // 检查发包次数奖励 (在更新后触发)
                     checkSendReward(playerName);
                 });
             }).catch(err => {
@@ -438,19 +427,15 @@
         const playerName = window.currentPlayerName;
         if (!playerName) { showToast('请先切换玩家'); return; }
 
-        // 读取红包数据
         const giftRef = giftsRef.child(giftId);
         giftRef.once('value', (snap) => {
             const gift = snap.val();
             if (!gift) { showToast('❌ 红包不存在'); return; }
-
-            // 检查是否自己发的
             if (gift.sender === playerName) {
                 showToast('❌ 你不能抢自己发的红包！');
                 return;
             }
 
-            // 检查是否有未抢包
             const availableIndexes = [];
             gift.packets.forEach((p, idx) => {
                 if (!p.grabbed) availableIndexes.push(idx);
@@ -460,24 +445,20 @@
                 return;
             }
 
-            // 读取玩家数据
             const playerRef = getPlayerRef(playerName);
             playerRef.once('value', (playerSnap) => {
                 const playerData = playerSnap.val();
                 if (!playerData) { showToast('玩家数据不存在'); return; }
-                // 检查是否已抢过此红包
                 if (playerData.grabbedGifts && playerData.grabbedGifts[giftId]) {
                     showToast('❌ 你已经抢过这个红包了！');
                     return;
                 }
-                // 检查余额
                 const required = Math.ceil(gift.amount * 1.8 * 100) / 100;
                 if ((playerData.balance || 0) < required) {
                     showToast(`❌ 余额不足，需要 ₹${required.toFixed(2)} (1.8倍)`);
                     return;
                 }
 
-                // 随机选一个包
                 const randomIdx = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
                 const packet = gift.packets[randomIdx];
                 const packetAmount = packet.amount;
@@ -485,15 +466,11 @@
                 const digit = intPart % 10;
                 const isBomb = (digit === gift.bombDigit);
 
-                // 准备更新操作（原子性使用 transaction，但为简化我们使用一次更新，但可能冲突，这里使用 transaction 处理抢包）
-                // 使用 transaction 保证原子性
                 giftRef.transaction((currentGift) => {
                     if (!currentGift) return currentGift;
-                    // 再次检查该包是否已被抢
                     if (currentGift.packets[randomIdx].grabbed) {
-                        return; // 放弃更新
+                        return;
                     }
-                    // 标记包已抢
                     currentGift.packets[randomIdx].grabbed = true;
                     currentGift.packets[randomIdx].grabber = playerName;
                     return currentGift;
@@ -506,17 +483,13 @@
                         showToast('该包已被抢走，请刷新重试');
                         return;
                     }
-                    // 成功抢到，处理余额和奖励
                     const updatedGift = snapshot.val();
-                    // 计算赔付
                     let resultMsg = '';
-                    let balanceChange = 0;
                     if (isBomb) {
                         const payout = Math.round(gift.amount * 1.8 * 100) / 100;
                         const profit = payout - gift.amount;
                         const fee = Math.round(profit * 0.05 * 100) / 100;
                         const senderGain = payout - fee;
-                        // 更新玩家余额（抢包者扣款，发送者加款）
                         const senderRef = getPlayerRef(gift.sender);
                         playerRef.update({
                             balance: (playerData.balance || 0) - payout,
@@ -528,7 +501,6 @@
                         });
                         resultMsg = `💥 踩到炸弹！<br>包金额 ₹${packetAmount.toFixed(2)}，尾数 ${digit} 等于炸弹数字 ${gift.bombDigit}。<br>你赔付 ₹${payout.toFixed(2)} 给 ${gift.sender}。<br>${gift.sender} 获得 ₹${senderGain.toFixed(2)} (已扣5%平台费)`;
                     } else {
-                        // 未踩炸弹：抢包者获得该包金额
                         playerRef.update({
                             balance: (playerData.balance || 0) + packetAmount,
                             grabCount: (playerData.grabCount || 0) + 1,
@@ -536,20 +508,16 @@
                         });
                         resultMsg = `🎉 安全！<br>包金额 ₹${packetAmount.toFixed(2)}，尾数 ${digit} 不等于炸弹数字 ${gift.bombDigit}。<br>你获得了 ₹${packetAmount.toFixed(2)}`;
                     }
-                    // 处理额外奖励（同号/连号）
                     processGrabReward(playerName, digit);
-                    // 检查抢包次数奖励
                     checkGrabReward(playerName);
                     showModal('💣 抢包结果', resultMsg);
-                    // 刷新UI（监听会自动更新）
                 });
             });
         });
     };
 
-    // ---------- 额外奖励逻辑（与之前类似，但使用Firebase更新） ----------
-    // 全局历史存储（为了简便，不存储在数据库，仅本地）
-    let grabHistory = []; // 存储 { player, digit }
+    // ---------- 额外奖励逻辑 ----------
+    let grabHistory = [];
 
     function processGrabReward(player, digit) {
         grabHistory.push({ player, digit });
@@ -654,7 +622,6 @@
     });
 
     refreshGifts.addEventListener('click', () => {
-        // 刷新列表（监听已自动更新，无需额外操作）
         showToast('已刷新');
     });
 
@@ -662,10 +629,8 @@
     function switchPlayer() {
         const name = playerNameInput.value.trim();
         if (!name) { showToast('请输入昵称'); return; }
-        // 设置当前玩家
         window.currentPlayerName = name;
         listenPlayer(name);
-        // 同时获取玩家数据，并保存到全局以备抢包使用
         getPlayerRef(name).once('value', (snap) => {
             const data = snap.val();
             window._currentPlayerData = data || { balance: 1000, sendCount: 0, grabCount: 0, bonusCount: 0, grabbedGifts: {} };
@@ -678,7 +643,6 @@
         if (e.key === 'Enter') switchPlayer();
     });
 
-    // 重置余额（仅当前玩家）
     resetBalanceBtn.addEventListener('click', () => {
         const player = window.currentPlayerName;
         if (!player) { showToast('请先切换玩家'); return; }
@@ -698,19 +662,13 @@
 
     // ---------- 初始化 ----------
     initBombSelector();
-
-    // 默认玩家：从输入框读取
     const defaultName = playerNameInput.value.trim() || 'Player1';
     window.currentPlayerName = defaultName;
     listenPlayer(defaultName);
     listenGifts();
-
-    // 加载玩家数据
     getPlayerRef(defaultName).once('value', (snap) => {
         window._currentPlayerData = snap.val() || { balance: 1000, sendCount: 0, grabCount: 0, bonusCount: 0, grabbedGifts: {} };
     });
-
-    // 定期刷新（无需额外操作，监听已实时更新）
 
     console.log('🔥 Firebase 多人联机版已启动！');
 </script>
