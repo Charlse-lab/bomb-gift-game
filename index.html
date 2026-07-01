@@ -173,15 +173,15 @@
     // ============================================================
     // 🔥 Firebase 配置 - 替换为你的项目配置
     // ============================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyBI58xy2ICo21x91928VCTjijWYHhysDPo",
-  authDomain: "bomb-gift-game-30ba9.firebaseapp.com",
-  databaseURL: "https://bomb-gift-game-30ba9-default-rtdb.firebaseio.com",
-  projectId: "bomb-gift-game-30ba9",
-  storageBucket: "bomb-gift-game-30ba9.firebasestorage.app",
-  messagingSenderId: "433690949590",
-  appId: "1:433690949590:web:a0c8fd3c349ecdbbd55677"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyBI58xy2ICo21x91928VCTjijWYHhysDPo",
+        authDomain: "bomb-gift-game-30ba9.firebaseapp.com",
+        databaseURL: "https://bomb-gift-game-30ba9-default-rtdb.firebaseio.com",
+        projectId: "bomb-gift-game-30ba9",
+        storageBucket: "bomb-gift-game-30ba9.firebasestorage.app",
+        messagingSenderId: "433690949590",
+        appId: "1:433690949590:web:a0c8fd3c349ecdbbd55677"
+    };
 
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
@@ -212,7 +212,7 @@ const firebaseConfig = {
     let modalCallback = null;
 
     // ---------- 全局状态 ----------
-    let currentPlayer = null;          // 当前玩家名称
+    let currentPlayer = null;
     let playersRef = database.ref('players');
     let giftsRef = database.ref('gifts');
 
@@ -262,6 +262,7 @@ const firebaseConfig = {
 
     // ---------- 监听玩家数据变化 ----------
     function listenPlayer(playerName) {
+        // 取消之前的监听
         if (window._playerListener) {
             window._playerListener.off();
         }
@@ -629,11 +630,17 @@ const firebaseConfig = {
     function switchPlayer() {
         const name = playerNameInput.value.trim();
         if (!name) { showToast('请输入昵称'); return; }
+        // 更新当前玩家
         window.currentPlayerName = name;
+        // 监听新玩家数据
         listenPlayer(name);
+        // 获取新玩家数据并缓存
         getPlayerRef(name).once('value', (snap) => {
             const data = snap.val();
             window._currentPlayerData = data || { balance: 1000, sendCount: 0, grabCount: 0, bonusCount: 0, grabbedGifts: {} };
+            // 强制刷新UI
+            updateUI(window._currentPlayerData);
+            currentPlayerDisplay.textContent = name;
         });
         showToast(`已切换到 ${name}`);
     }
@@ -668,6 +675,8 @@ const firebaseConfig = {
     listenGifts();
     getPlayerRef(defaultName).once('value', (snap) => {
         window._currentPlayerData = snap.val() || { balance: 1000, sendCount: 0, grabCount: 0, bonusCount: 0, grabbedGifts: {} };
+        updateUI(window._currentPlayerData);
+        currentPlayerDisplay.textContent = defaultName;
     });
 
     console.log('🔥 Firebase 多人联机版已启动！');
