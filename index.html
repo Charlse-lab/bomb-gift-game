@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>♠️ 德州扑克 · 淘汰赛</title>
     <style>
-        /* 样式与原版相同，此处省略以节省空间，你可以从之前的代码中复制样式，或直接使用下面的压缩版 */
         * { box-sizing: border-box; user-select: none; }
         body { background: #0a2e1f; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; justify-content: center; padding: 20px; margin: 0; min-height: 100vh; color: #fff; }
         .container { max-width: 1000px; width: 100%; background: #1a5a3a; border-radius: 30px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.7); }
@@ -47,7 +46,6 @@
         .info-bar { display: flex; justify-content: space-between; flex-wrap: wrap; background: #0d4a33; padding: 8px 16px; border-radius: 40px; margin: 10px 0 5px; }
         .info-bar .pot { font-weight: bold; color: #f5c842; }
         .message { min-height: 36px; text-align: center; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 20px; margin-top: 8px; }
-        .waiting-msg { color: #ffd93d; font-size: 1.1rem; }
         .eliminated { opacity: 0.4; filter: grayscale(1); }
         @media (max-width: 600px) { .card { width: 44px; height: 62px; font-size: 1rem; } .player-box { padding: 5px; } }
     </style>
@@ -127,7 +125,6 @@
     let roomRef = null;
     let gameState = null;
     let myPlayerId = '';
-    let isReady = false;
 
     // ---------- 常量 ----------
     const INITIAL_CHIPS = 1000;
@@ -155,7 +152,7 @@
         return arr;
     }
 
-    // ---------- 牌型评估（完整） ----------
+    // ---------- 牌型评估 ----------
     function evaluateHand(cards) {
         const values = cards.map(c => c.value).sort((a,b)=>a-b);
         const suits = cards.map(c => c.suit);
@@ -235,10 +232,6 @@
         }
         return 0;
     }
-    function getHandName(rank) {
-        const names = ['高牌','一对','两对','三条','顺子','同花','葫芦','四条','同花顺','皇家同花顺'];
-        return names[rank] || '未知';
-    }
 
     // ---------- 登录 ----------
     loginBtn.addEventListener('click', () => {
@@ -272,18 +265,19 @@
         gameArea.classList.add('active');
         roomRef = db.ref('game');
         roomRef.on('value', snap => {
-            const state = snap.val();
-            if (state) {
-                // 确保 phase 为 'lobby' 或 'waiting'，而不是其他无效值
-                if (state.phase !== 'lobby' && state.phase !== 'waiting' && state.phase !== 'preflop' && state.phase !== 'flop' && state.phase !== 'turn' && state.phase !== 'river' && state.phase !== 'showdown') {
-                    state.phase = 'lobby';
-                }
-                gameState = state;
-                renderGame(state);
-            } else {
+            let state = snap.val();
+            if (!state) {
+                // 初始化游戏状态
                 initializeGame();
+                return;
             }
+            // 确保必要字段存在
+            if (!state.readyPlayers) state.readyPlayers = [];
+            if (!state.phase || state.phase === '') state.phase = 'lobby';
+            gameState = state;
+            renderGame(state);
         });
+        // 监听玩家数据变化（更新筹码）
         db.ref('players').on('value', snap => {
             const data = snap.val();
             if (data && gameState) {
@@ -310,7 +304,7 @@
             gameOver: false,
             winner: null,
             handStarted: false,
-            readyPlayers: []
+            readyPlayers: []   // ← 初始化空数组
         };
         db.ref('players').once('value', snap => {
             const data = snap.val();
@@ -336,9 +330,9 @@
     function toggleReady() {
         if (!gameState) { alert('游戏未初始化'); return; }
         const state = gameState;
-        if (state.phase !== 'lobby' && state.phase !== 'waiting') {
-            alert('当前不在大厅，无法准备');
-            return;
+        // 确保 readyPlayers 存在
+        if (!state.readyPlayers) {
+            state.readyPlayers = [];
         }
         const myPlayer = state.players[myPlayerId];
         if (!myPlayer || myPlayer.eliminated || myPlayer.chips <= 0) {
@@ -352,10 +346,8 @@
         } else {
             state.readyPlayers.push(myPlayerId);
         }
-        // 更新 Firebase，并添加回调确认
         roomRef.update({ readyPlayers: state.readyPlayers }).then(() => {
             console.log('✅ 准备状态已更新:', state.readyPlayers);
-            // 检查是否所有人都准备了
             const alive = Object.keys(state.players).filter(pid => !state.players[pid].eliminated);
             if (state.readyPlayers.length >= 2 && state.readyPlayers.length === alive.length) {
                 console.log('🎯 所有人已准备，开始新一局！');
@@ -365,8 +357,6 @@
             alert('❌ 写入失败，请检查Firebase权限: ' + err.message);
             console.error(err);
         });
-        // 立即更新本地状态以便UI反馈（但实际以Firebase为准）
-        // renderGame 会在 Firebase 回调后重新渲染
     }
 
     // ---------- 开始新一局 ----------
@@ -586,6 +576,15 @@
     // ---------- 渲染 ----------
     function renderGame(state) {
         if (!state) return;
+        // 确保 readyPlayers 存在
+        if (!state.readyPlayers) state.readyPlayers = [];
+        // 自动修复：如果玩家有筹码但被标记淘汰，取消淘汰
+        const myPlayer = state.players[myPlayerId];
+        if (myPlayer && myPlayer.chips > 0 && myPlayer.eliminated) {
+            db.ref('players/' + myPlayerId).update({ eliminated: false });
+            myPlayer.eliminated = false;
+        }
+
         // 公共牌
         if (state.community && state.community.length) {
             communityCardsEl.innerHTML = state.community.map(c => 
@@ -648,10 +647,10 @@
 
         // 按钮显示
         const isLobby = (state.phase === 'lobby' || state.phase === 'waiting');
-        const myPlayer = state.players[myPlayerId];
-        const eliminated = myPlayer && (myPlayer.eliminated || myPlayer.chips <= 0);
+        const myP = state.players[myPlayerId];
+        const eliminatedP = myP && (myP.eliminated || myP.chips <= 0);
 
-        if (isLobby && !eliminated && !state.gameOver) {
+        if (isLobby && !eliminatedP && !state.gameOver) {
             readyBtn.style.display = 'inline-block';
             const isReady = state.readyPlayers && state.readyPlayers.includes(myPlayerId);
             readyBtn.textContent = isReady ? '❌ 取消准备' : '✅ 准备';
@@ -666,7 +665,7 @@
         });
         if (inGame) {
             const isMyTurn = (pids[state.turnIndex] === myPlayerId) && !state.gameOver;
-            if (myPlayer && (myPlayer.folded || myPlayer.allIn || myPlayer.chips === 0)) {
+            if (myP && (myP.folded || myP.allIn || myP.chips === 0)) {
                 disableButtons(true);
             } else {
                 disableButtons(!isMyTurn);
@@ -684,12 +683,12 @@
     }
 
     function checkCallRaiseButtons(state) {
-        const myPlayer = state.players[myPlayerId];
-        const callAmount = Math.min(state.currentBet - myPlayer.bet, myPlayer.chips);
+        const myP = state.players[myPlayerId];
+        const callAmount = Math.min(state.currentBet - myP.bet, myP.chips);
         callBtn.disabled = callAmount <= 0;
-        checkBtn.disabled = myPlayer.bet !== state.currentBet;
-        raiseBtn.disabled = myPlayer.chips <= 0;
-        allinBtn.disabled = myPlayer.chips <= 0;
+        checkBtn.disabled = myP.bet !== state.currentBet;
+        raiseBtn.disabled = myP.chips <= 0;
+        allinBtn.disabled = myP.chips <= 0;
     }
 
     // ---------- 事件绑定 ----------
@@ -703,7 +702,7 @@
         if (amount) playerAction('raise', parseInt(amount));
     });
 
-    console.log('♠️ 德州扑克淘汰赛已启动！');
+    console.log('♠️ 德州扑克淘汰赛（完整修复版）已启动！');
 </script>
 </body>
 </html>
