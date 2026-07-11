@@ -267,7 +267,6 @@
         roomRef.on('value', snap => {
             let state = snap.val();
             if (!state) {
-                // 初始化游戏状态
                 initializeGame();
                 return;
             }
@@ -304,7 +303,7 @@
             gameOver: false,
             winner: null,
             handStarted: false,
-            readyPlayers: []   // ← 初始化空数组
+            readyPlayers: []
         };
         db.ref('players').once('value', snap => {
             const data = snap.val();
@@ -330,12 +329,21 @@
     function toggleReady() {
         if (!gameState) { alert('游戏未初始化'); return; }
         const state = gameState;
-        // 确保 readyPlayers 存在
-        if (!state.readyPlayers) {
-            state.readyPlayers = [];
-        }
+        if (!state.readyPlayers) state.readyPlayers = [];
+
         const myPlayer = state.players[myPlayerId];
-        if (!myPlayer || myPlayer.eliminated || myPlayer.chips <= 0) {
+        if (!myPlayer) {
+            alert('玩家数据不存在');
+            return;
+        }
+        // 如果误标记淘汰，自动修复
+        if (myPlayer.eliminated && myPlayer.chips > 0) {
+            db.ref('players/' + myPlayerId).update({ eliminated: false });
+            myPlayer.eliminated = false;
+            console.log('✅ 准备前自动修复淘汰状态');
+        }
+
+        if (myPlayer.eliminated || myPlayer.chips <= 0) {
             alert('你已被淘汰，无法准备');
             return;
         }
@@ -576,14 +584,19 @@
     // ---------- 渲染 ----------
     function renderGame(state) {
         if (!state) return;
+        // ===== 修复：自动修正所有玩家的淘汰状态 =====
+        for (const pid in state.players) {
+            const p = state.players[pid];
+            if (p.chips > 0 && p.eliminated) {
+                db.ref('players/' + pid).update({ eliminated: false });
+                p.eliminated = false;
+                console.log('✅ 自动修复玩家', p.name, '的淘汰状态');
+            }
+        }
+        // ===== 修复结束 =====
+
         // 确保 readyPlayers 存在
         if (!state.readyPlayers) state.readyPlayers = [];
-        // 自动修复：如果玩家有筹码但被标记淘汰，取消淘汰
-        const myPlayer = state.players[myPlayerId];
-        if (myPlayer && myPlayer.chips > 0 && myPlayer.eliminated) {
-            db.ref('players/' + myPlayerId).update({ eliminated: false });
-            myPlayer.eliminated = false;
-        }
 
         // 公共牌
         if (state.community && state.community.length) {
