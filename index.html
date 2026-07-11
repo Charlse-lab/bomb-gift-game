@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>♠️ 德州扑克 · 淘汰赛</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+        body {
+            background: #0a2e1f;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            background: #1a5a3a;
+            border-radius: 30px;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+        }
+        h1 { text-align: center; font-weight: 300; letter-spacing: 3px; margin: 0 0 10px; font-size: 2.2rem; }
+        .login-area {
+            text-align: center;
+            background: #0d4a33;
+            padding: 20px;
+            border-radius: 40px;
+            margin-bottom: 20px;
+        }
+        .login-area input {
+            padding: 10px 16px;
+            border-radius: 30px;
+            border: none;
+            margin: 5px;
+            font-size: 1rem;
+            width: 200px;
+        }
+        .login-area button {
+            padding: 10px 30px;
+            border-radius: 30px;
+            border: none;
+            background: #f5c842;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .game-area { display: none; }
+        .game-area.active { display: block; }
+        .table {
+            background: #0f5a3d;
+            border-radius: 60px;
+            padding: 15px 10px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+            min-height: 300px;
+        }
+        .community-area { text-align: center; margin-bottom: 10px; }
+        .community-area .label { font-size: 0.8rem; opacity: 0.7; }
+        .cards { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+        .card {
+            width: 60px; height: 84px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #222;
+        }
+        .card.red { color: #d32f2f; }
+        .card.black { color: #222; }
+        .card-back {
+            background: linear-gradient(135deg, #1a3a8a, #2a5aaa);
+            border: 2px solid #f5c842;
+            color: transparent;
+            background-image: repeating-linear-gradient(45deg, #2a5aaa 0px, #2a5aaa 8px, #1a3a8a 8px, #1a3a8a 16px);
+        }
+        .card-back::after { content: "♠"; color: rgba(255,255,255,0.15); font-size: 2rem; display: flex; justify-content: center; align-items: center; height: 100%; }
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .player-box {
+            background: rgba(0,0,0,0.25);
+            border-radius: 20px;
+            padding: 8px 10px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: 0.2s;
+        }
+        .player-box.active { border-color: #f5c842; }
+        .player-box .name { font-weight: bold; font-size: 1rem; }
+        .player-box .chips { background: #f5c842; color: #1a3a2a; padding: 0 10px; border-radius: 20px; font-weight: bold; display: inline-block; margin-top: 2px; }
+        .player-box .bet { font-size: 0.8rem; color: #ddd; }
+        .player-box .folded { color: #ff6b6b; font-weight: bold; }
+        .player-box .hand-cards { display: flex; justify-content: center; gap: 3px; margin-top: 4px; }
+        .player-box .hand-cards .card { width: 30px; height: 42px; font-size: 0.8rem; }
+        .actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 12px 0;
+        }
+        .actions button {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            background: #f5c842;
+            color: #1a3a2a;
+            font-size: 0.95rem;
+            transition: 0.15s;
+        }
+        .actions button:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .actions button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .actions .fold { background: #c0392b; color: #fff; }
+        .actions .check { background: #2e86c1; color: #fff; }
+        .actions .call { background: #27ae60; color: #fff; }
+        .actions .raise { background: #f39c12; color: #fff; }
+        .actions .allin { background: #8e44ad; color: #fff; }
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            background: #0d4a33;
+            padding: 8px 16px;
+            border-radius: 40px;
+            margin: 10px 0 5px;
+        }
+        .info-bar .pot { font-weight: bold; color: #f5c842; }
+        .message { min-height: 36px; text-align: center; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 20px; margin-top: 8px; }
+        .start-btn { background: #f5c842; border: none; padding: 10px 30px; border-radius: 40px; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 10px; }
+        .waiting-msg { color: #ffd93d; font-size: 1.1rem; }
+        .eliminated { opacity: 0.4; filter: grayscale(1); }
+        @media (max-width: 600px) {
+            .card { width: 44px; height: 62px; font-size: 1rem; }
+            .player-box { padding: 5px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>♠️ 德州扑克 · 淘汰赛</h1>
+
+    <!-- 登录区 -->
+    <div class="login-area" id="loginArea">
+        <input type="text" id="usernameInput" placeholder="你的名字" value="Player">
+        <button id="loginBtn">进入游戏</button>
+        <div style="margin-top:8px; color:#ddd; font-size:0.9rem;">已有玩家：<span id="playerList">无</span></div>
+    </div>
+
+    <!-- 游戏区 -->
+    <div class="game-area" id="gameArea">
+        <div class="table">
+            <div class="community-area">
+                <div class="label">公共牌</div>
+                <div class="cards" id="communityCards"></div>
+            </div>
+            <div class="players-grid" id="playersGrid"></div>
+            <div class="info-bar">
+                <span class="pot">🏆 底池: <span id="potDisplay">0</span></span>
+                <span id="phaseDisplay">等待开始</span>
+            </div>
+            <div class="actions" id="actions">
+                <button class="fold" id="foldBtn" disabled>弃牌</button>
+                <button class="check" id="checkBtn" disabled>过牌</button>
+                <button class="call" id="callBtn" disabled>跟注</button>
+                <button class="raise" id="raiseBtn" disabled>加注</button>
+                <button class="allin" id="allinBtn" disabled>All-in</button>
+            </div>
+            <div class="message" id="message">等待玩家加入...</div>
+            <button class="start-btn" id="startGameBtn" style="display:none;">开始新一局</button>
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+    // ============================================================
+    // 🔥 Firebase 配置 - 替换为你的项目配置
+    // ============================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZsJR_ssAvvsNIZvlhF_uIGlF6zdxtJyY",
+        authDomain: "texas-hold-em-94af2.firebaseapp.com",
+        databaseURL: "https://texas-hold-em-94af2-default-rtdb.firebaseio.com",
+        projectId: "texas-hold-em-94af2",
+        storageBucket: "texas-hold-em-94af2.firebasestorage.app",
+        messagingSenderId: "738793179859",
+        appId: "1:738793179859:web:235b9880d2f66c1c69e226"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ---------- DOM 引用 ----------
+    const loginArea = document.getElementById('loginArea');
+    const gameArea = document.getElementById('gameArea');
+    const usernameInput = document.getElementById('usernameInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const playerListEl = document.getElementById('playerList');
+    const communityCardsEl = document.getElementById('communityCards');
+    const playersGrid = document.getElementById('playersGrid');
+    const potDisplay = document.getElementById('potDisplay');
+    const phaseDisplay = document.getElementById('phaseDisplay');
+    const messageEl = document.getElementById('message');
+    const startGameBtn = document.getElementById('startGameBtn');
+    const foldBtn = document.getElementById('foldBtn');
+    const checkBtn = document.getElementById('checkBtn');
+    const callBtn = document.getElementById('callBtn');
+    const raiseBtn = document.getElementById('raiseBtn');
+    const allinBtn = document.getElementById('allinBtn');
+
+    // ---------- 游戏状态 ----------
+    let currentPlayerName = '';
+    let roomRef = null;
+    let gameState = null;
+    let myPlayerId = '';
+    let isMyTurn = false;
+
+    // ---------- 常量 ----------
+    const INITIAL_CHIPS = 1000;
+    const SMALL_BLIND = 10;
+    const BIG_BLIND = 20;
+    const SUITS = ['♠', '♥', '♦', '♣'];
+    const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+    const RANK_VALUES = {2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,J:11,Q:12,K:13,A:14};
+
+    // ---------- 牌组工具 ----------
+    function createDeck() {
+        const deck = [];
+        for (const suit of SUITS) {
+            for (const rank of RANKS) {
+                deck.push({ suit, rank, value: RANK_VALUES[rank] });
+            }
+        }
+        return shuffle(deck);
+    }
+    function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    // ---------- 牌型评估（完整版） ----------
+    function evaluateHand(cards) {
+        // cards: 数组，每张牌 { suit, rank, value }
+        // 返回 { rank: 0-9, kickers: [] }，rank越大牌型越强
+        const values = cards.map(c => c.value).sort((a,b)=>a-b);
+        const suits = cards.map(c => c.suit);
+        const isFlush = suits.every(s => s === suits[0]);
+        const valCount = {};
+        values.forEach(v => valCount[v] = (valCount[v]||0)+1);
+        const groups = Object.entries(valCount).map(([v,c]) => ({ value: Number(v), count: c }));
+        groups.sort((a,b) => b.count - a.count || b.value - a.value);
+
+        // 顺子检测
+        let isStraight = false;
+        let straightHigh = 0;
+        const uniqueVals = [...new Set(values)].sort((a,b)=>a-b);
+        for (let i = 0; i <= uniqueVals.length-5; i++) {
+            if (uniqueVals[i+4] - uniqueVals[i] === 4) {
+                isStraight = true;
+                straightHigh = uniqueVals[i+4];
+                break;
+            }
+        }
+        // 特殊 A-2-3-4-5
+        if (!isStraight && uniqueVals[0]===2 && uniqueVals[1]===3 && uniqueVals[2]===4 && uniqueVals[3]===5 && uniqueVals[4]===14) {
+            isStraight = true;
+            straightHigh = 5;
+        }
+
+        const isFour = groups.some(g => g.count === 4);
+        const isThree = groups.some(g => g.count === 3);
+        const pairs = groups.filter(g => g.count === 2);
+        const isTwoPair = pairs.length === 2;
+        const isOnePair = pairs.length === 1;
+
+        let rank = 0;
+        let kickers = [];
+
+        if (isFlush && isStraight) {
+            rank = straightHigh === 14 ? 9 : 8;
+            kickers = [straightHigh];
+        } else if (isFour) {
+            rank = 7;
+            const fourVal = groups.find(g => g.count === 4).value;
+            const kicker = groups.find(g => g.count !== 4).value;
+            kickers = [fourVal, kicker];
+        } else if (isThree && isOnePair) {
+            rank = 6;
+            const threeVal = groups.find(g => g.count === 3).value;
+            const pairVal = groups.find(g => g.count === 2).value;
+            kickers = [threeVal, pairVal];
+        } else if (isFlush) {
+            rank = 5;
+            kickers = values.slice().reverse();
+        } else if (isStraight) {
+            rank = 4;
+            kickers = [straightHigh];
+        } else if (isThree) {
+            rank = 3;
+            const threeVal = groups.find(g => g.count === 3).value;
+            const rest = values.filter(v => v !== threeVal).sort((a,b)=>b-a);
+            kickers = [threeVal, ...rest];
+        } else if (isTwoPair) {
+            rank = 2;
+            const pairVals = pairs.map(p => p.value).sort((a,b)=>b-a);
+            const kicker = values.find(v => !pairVals.includes(v));
+            kickers = [...pairVals, kicker || 0];
+        } else if (isOnePair) {
+            rank = 1;
+            const pairVal = pairs[0].value;
+            const rest = values.filter(v => v !== pairVal).sort((a,b)=>b-a);
+            kickers = [pairVal, ...rest];
+        } else {
+            rank = 0;
+            kickers = values.slice().reverse();
+        }
+        return { rank, kickers };
+    }
+
+    function compareHands(h1, h2) {
+        if (h1.rank !== h2.rank) return h1.rank - h2.rank;
+        for (let i = 0; i < Math.min(h1.kickers.length, h2.kickers.length); i++) {
+            if (h1.kickers[i] !== h2.kickers[i]) return h1.kickers[i] - h2.kickers[i];
+        }
+        return 0;
+    }
+
+    function getHandName(rank) {
+        const names = ['高牌','一对','两对','三条','顺子','同花','葫芦','四条','同花顺','皇家同花顺'];
+        return names[rank] || '未知';
+    }
+
+    // ---------- 登录 ----------
+    loginBtn.addEventListener('click', () => {
+        const name = usernameInput.value.trim();
+        if (!name) { alert('请输入名字'); return; }
+        currentPlayerName = name;
+        // 检查是否有同名玩家
+        db.ref('players').orderByChild('name').equalTo(name).once('value', snap => {
+            if (snap.exists()) {
+                // 玩家已存在，直接使用
+                const key = Object.keys(snap.val())[0];
+                myPlayerId = key;
+                enterGame();
+            } else {
+                // 新建玩家
+                const ref = db.ref('players').push();
+                ref.set({ name: name, chips: INITIAL_CHIPS, eliminated: false });
+                myPlayerId = ref.key;
+                enterGame();
+            }
+        });
+    });
+
+    // 显示已有玩家列表
+    db.ref('players').on('value', snap => {
+        const data = snap.val();
+        if (!data) { playerListEl.textContent = '无'; return; }
+        const names = Object.values(data).map(p => p.name).join(', ');
+        playerListEl.textContent = names || '无';
+    });
+
+    function enterGame() {
+        loginArea.style.display = 'none';
+        gameArea.classList.add('active');
+        // 监听游戏状态
+        roomRef = db.ref('game');
+        roomRef.on('value', snap => {
+            const state = snap.val();
+            if (state) {
+                gameState = state;
+                renderGame(state);
+            } else {
+                // 无游戏状态，初始化
+                initializeGame();
+            }
+        });
+        // 监听玩家数据变化（用于更新筹码）
+        db.ref('players').on('value', snap => {
+            const data = snap.val();
+            if (data && gameState) {
+                // 更新gameState中的玩家筹码信息（从players同步）
+                const players = gameState.players || {};
+                for (const pid in players) {
+                    if (data[pid]) {
+                        players[pid].chips = data[pid].chips;
+                        players[pid].eliminated = data[pid].eliminated || false;
+                    }
+                }
+                renderGame(gameState);
+            }
+        });
+    }
+
+    function initializeGame() {
+        // 重置游戏状态
+        const state = {
+            players: {},
+            community: [],
+            pot: 0,
+            phase: 'waiting',  // waiting, preflop, flop, turn, river, showdown
+            turnIndex: -1,
+            dealerIndex: 0,
+            currentBet: 0,
+            gameOver: false,
+            winner: null,
+            handStarted: false
+        };
+        // 获取所有未淘汰玩家
+        db.ref('players').once('value', snap => {
+            const data = snap.val();
+            if (!data) return;
+            for (const pid in data) {
+                const p = data[pid];
+                if (!p.eliminated) {
+                    state.players[pid] = {
+                        name: p.name,
+                        chips: p.chips,
+                        hand: [],
+                        bet: 0,
+                        folded: false,
+                        allIn: false
+                    };
+                }
+            }
+            roomRef.set(state);
+        });
+    }
+
+    // ---------- 开始新一局 ----------
+    function startNewHand() {
+        const state = gameState;
+        if (!state) return;
+        const alivePlayers = Object.keys(state.players).filter(pid => !state.players[pid].folded && !state.players[pid].eliminated);
+        if (alivePlayers.length < 2) {
+            messageEl.textContent = '至少需要2名玩家才能开始！';
+            return;
+        }
+        // 重置玩家状态
+        for (const pid in state.players) {
+            const p = state.players[pid];
+            p.hand = [];
+            p.bet = 0;
+            p.folded = false;
+            p.allIn = false;
+        }
+        state.community = [];
+        state.pot = 0;
+        state.phase = 'preflop';
+        state.currentBet = 0;
+        state.gameOver = false;
+        state.winner = null;
+        state.handStarted = true;
+
+        // 发牌
+        const deck = createDeck();
+        const pids = alivePlayers;
+        // 每人两张
+        for (const pid of pids) {
+            state.players[pid].hand = [deck.pop(), deck.pop()];
+        }
+
+        // 设置盲注
+        const dealerIdx = (state.dealerIndex || 0) % pids.length;
+        const sbIdx = (dealerIdx + 1) % pids.length;
+        const bbIdx = (dealerIdx + 2) % pids.length;
+        const sbPlayer = state.players[pids[sbIdx]];
+        const bbPlayer = state.players[pids[bbIdx]];
+        const sb = Math.min(SMALL_BLIND, sbPlayer.chips);
+        const bb = Math.min(BIG_BLIND, bbPlayer.chips);
+        sbPlayer.chips -= sb;
+        sbPlayer.bet = sb;
+        bbPlayer.chips -= bb;
+        bbPlayer.bet = bb;
+        state.pot = sb + bb;
+        state.currentBet = bb;
+        state.dealerIndex = dealerIdx;
+
+        // 第一个行动者：大盲下一位
+        let turnIdx = (bbIdx + 1) % pids.length;
+        state.turnIndex = turnIdx;
+        state.phase = 'preflop';
+        roomRef.update(state);
+    }
+
+    // ---------- 玩家行动 ----------
+    function playerAction(action, amount) {
+        if (!gameState || gameState.gameOver) return;
+        if (gameState.phase === 'waiting') return;
+        const currentPlayerId = Object.keys(gameState.players)[gameState.turnIndex];
+        if (currentPlayerId !== myPlayerId) return;
+        const player = gameState.players[myPlayerId];
+        if (player.folded || player.allIn || player.chips === 0) return;
+
+        const callAmount = Math.min(gameState.currentBet - player.bet, player.chips);
+        let newState = JSON.parse(JSON.stringify(gameState));
+        const p = newState.players[myPlayerId];
+
+        switch (action) {
+            case 'fold':
+                p.folded = true;
+                break;
+            case 'check':
+                if (p.bet < newState.currentBet) return; // 不能check
+                break;
+            case 'call':
+                if (callAmount <= 0) return;
+                const callChips = Math.min(callAmount, p.chips);
+                p.chips -= callChips;
+                p.bet += callChips;
+                newState.pot += callChips;
+                if (p.chips === 0) p.allIn = true;
+                break;
+            case 'raise':
+                const totalBet = Math.min(amount, p.chips + p.bet);
+                if (totalBet <= p.bet) return;
+                const raiseChips = totalBet - p.bet;
+                p.chips -= raiseChips;
+                p.bet += raiseChips;
+                newState.pot += raiseChips;
+                newState.currentBet = p.bet;
+                if (p.chips === 0) p.allIn = true;
+                break;
+            case 'allin':
+                const allChips = p.chips;
+                p.bet += allChips;
+                newState.pot += allChips;
+                p.chips = 0;
+                p.allIn = true;
+                if (p.bet > newState.currentBet) newState.currentBet = p.bet;
+                break;
+            default: return;
+        }
+
+        // 检查是否所有玩家已行动
+        const activePlayers = Object.values(newState.players).filter(p => !p.folded && p.chips > 0);
+        const actedAll = activePlayers.every(p => p.bet === newState.currentBet || p.allIn);
+        if (actedAll || activePlayers.length <= 1) {
+            // 进入下一阶段或结束
+            advancePhase(newState);
+        } else {
+            // 移动到下一个未行动的玩家
+            moveToNext(newState);
+        }
+        roomRef.update(newState);
+    }
+
+    function moveToNext(state) {
+        const pids = Object.keys(state.players);
+        let next = (state.turnIndex + 1) % pids.length;
+        let attempts = 0;
+        while (attempts < pids.length) {
+            const p = state.players[pids[next]];
+            if (!p.folded && p.chips > 0 && p.bet < state.currentBet) {
+                state.turnIndex = next;
+                return;
+            }
+            next = (next + 1) % pids.length;
+            attempts++;
+        }
+        // 如果没人需要行动，自动进入下一阶段
+        advancePhase(state);
+    }
+
+    function advancePhase(state) {
+        const alive = Object.values(state.players).filter(p => !p.folded && p.chips > 0);
+        if (alive.length <= 1) {
+            endHand(state);
+            return;
+        }
+        switch (state.phase) {
+            case 'preflop':
+                state.phase = 'flop';
+                // 发3张
+                const deck = createDeck(); // 实际应使用剩余牌，此处简化
+                state.community = [deck.pop(), deck.pop(), deck.pop()];
+                break;
+            case 'flop':
+                state.phase = 'turn';
+                state.community.push(createDeck().pop());
+                break;
+            case 'turn':
+                state.phase = 'river';
+                state.community.push(createDeck().pop());
+                break;
+            case 'river':
+                showdown(state);
+                return;
+            default: return;
+        }
+        // 重置下注
+        for (const pid in state.players) {
+            state.players[pid].bet = 0;
+        }
+        state.currentBet = 0;
+        // 第一个行动者：庄家下一位
+        const pids = Object.keys(state.players);
+        let start = (state.dealerIndex + 1) % pids.length;
+        while (state.players[pids[start]].folded || state.players[pids[start]].chips === 0) {
+            start = (start + 1) % pids.length;
+        }
+        state.turnIndex = start;
+        roomRef.update(state);
+    }
+
+    function showdown(state) {
+        const alive = Object.values(state.players).filter(p => !p.folded && p.chips > 0);
+        if (alive.length === 0) { endHand(state); return; }
+        if (alive.length === 1) {
+            const winner = alive[0];
+            winner.chips += state.pot;
+            state.pot = 0;
+            state.gameOver = true;
+            state.winner = winner.name;
+            roomRef.update(state);
+            return;
+        }
+        // 评估牌型
+        let bestHand = null;
+        let bestPlayer = null;
+        for (const p of alive) {
+            const allCards = [...p.hand, ...state.community];
+            const result = evaluateHand(allCards);
+            if (!bestHand || compareHands(result, bestHand) > 0) {
+                bestHand = result;
+                bestPlayer = p;
+            }
+        }
+        // 赢家获得底池
+        bestPlayer.chips += state.pot;
+        state.pot = 0;
+        state.gameOver = true;
+        state.winner = bestPlayer.name;
+        // 更新玩家数据（持久化）
+        for (const pid in state.players) {
+            const p = state.players[pid];
+            db.ref('players/' + pid).update({ chips: p.chips });
+        }
+        // 检查淘汰
+        for (const pid in state.players) {
+            const p = state.players[pid];
+            if (p.chips <= 0) {
+                db.ref('players/' + pid).update({ eliminated: true });
+            }
+        }
+        roomRef.update(state);
+    }
+
+    function endHand(state) {
+        const alive = Object.values(state.players).filter(p => !p.folded && p.chips > 0);
+        if (alive.length > 0) {
+            const winner = alive[0];
+            winner.chips += state.pot;
+            state.pot = 0;
+            state.gameOver = true;
+            state.winner = winner.name;
+        }
+        roomRef.update(state);
+    }
+
+    // ---------- 渲染 ----------
+    function renderGame(state) {
+        if (!state) return;
+        // 公共牌
+        if (state.community && state.community.length) {
+            communityCardsEl.innerHTML = state.community.map(c => 
+                `<div class="card ${c.suit==='♥'||c.suit==='♦'?'red':'black'}">${c.rank}${c.suit}</div>`
+            ).join('');
+        } else {
+            communityCardsEl.innerHTML = '<span style="opacity:0.5;">等待发牌</span>';
+        }
+
+        // 玩家
+        const pids = Object.keys(state.players);
+        let html = '';
+        for (const pid of pids) {
+            const p = state.players[pid];
+            const isMe = pid === myPlayerId;
+            const isActive = state.turnIndex !== undefined && pids[state.turnIndex] === pid;
+            const eliminated = p.eliminated || p.chips <= 0;
+            let handHtml = '';
+            if (isMe) {
+                handHtml = p.hand.map(c => 
+                    `<div class="card ${c.suit==='♥'||c.suit==='♦'?'red':'black'}">${c.rank}${c.suit}</div>`
+                ).join('');
+            } else if (p.folded) {
+                handHtml = '<span class="folded">弃牌</span>';
+            } else if (eliminated) {
+                handHtml = '<span>💀</span>';
+            } else {
+                handHtml = `<div class="card card-back"></div><div class="card card-back"></div>`;
+            }
+            html += `<div class="player-box ${isActive?'active':''} ${eliminated?'eliminated':''}">
+                <div class="name">${isMe ? '🧑 ' : ''}${p.name}</div>
+                <div class="chips">💰 ${p.chips}</div>
+                <div class="bet">下注: ${p.bet}</div>
+                <div class="hand-cards">${handHtml}</div>
+            </div>`;
+        }
+        playersGrid.innerHTML = html;
+
+        potDisplay.textContent = state.pot;
+        phaseDisplay.textContent = state.phase || '等待';
+        if (state.gameOver) {
+            messageEl.innerHTML = `🏆 游戏结束！胜者: ${state.winner || '未知'}`;
+            startGameBtn.style.display = 'block';
+        } else {
+            const currentPlayerId = pids[state.turnIndex];
+            const currentPlayer = currentPlayerId ? state.players[currentPlayerId] : null;
+            messageEl.textContent = currentPlayer ? `当前行动: ${currentPlayer.name}` : '等待开始...';
+            startGameBtn.style.display = 'none';
+        }
+
+        // 按钮状态
+        const isMyTurn = (pids[state.turnIndex] === myPlayerId) && !state.gameOver;
+        const myPlayer = state.players[myPlayerId];
+        if (myPlayer && (myPlayer.folded || myPlayer.allIn || myPlayer.chips === 0)) {
+            disableButtons(true);
+        } else {
+            disableButtons(!isMyTurn);
+        }
+        isMyTurn && checkCallRaiseButtons(state);
+    }
+
+    function disableButtons(disabled) {
+        [foldBtn, checkBtn, callBtn, raiseBtn, allinBtn].forEach(btn => btn.disabled = disabled);
+    }
+
+    function checkCallRaiseButtons(state) {
+        const myPlayer = state.players[myPlayerId];
+        const callAmount = Math.min(state.currentBet - myPlayer.bet, myPlayer.chips);
+        callBtn.disabled = callAmount <= 0;
+        checkBtn.disabled = myPlayer.bet !== state.currentBet;
+        raiseBtn.disabled = myPlayer.chips <= 0;
+        allinBtn.disabled = myPlayer.chips <= 0;
+    }
+
+    // ---------- 事件绑定 ----------
+    foldBtn.addEventListener('click', () => playerAction('fold'));
+    checkBtn.addEventListener('click', () => playerAction('check'));
+    callBtn.addEventListener('click', () => playerAction('call'));
+    allinBtn.addEventListener('click', () => playerAction('allin'));
+    raiseBtn.addEventListener('click', () => {
+        const amount = prompt('请输入总下注额（含已下注）:');
+        if (amount) playerAction('raise', parseInt(amount));
+    });
+    startGameBtn.addEventListener('click', startNewHand);
+
+    // 初始化时，若游戏未开始，显示开始按钮
+    // 监听游戏状态变化，若phase为waiting且我是第一个玩家，显示开始按钮
+    // 已在render中处理
+
+    console.log('♠️ 德州扑克淘汰赛已启动！');
+</script>
+</body>
+</html>
